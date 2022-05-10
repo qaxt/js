@@ -1,10 +1,19 @@
 {
   "name": "qaxt",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "The modern JavaScript module that makes writing code quciker and easier!",
-  "main": "qaxt.js",
+  "main": "src/qaxt.js",
+  "module": "src/qaxt.mjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qaxt/js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/qaxt/js/issues"
+  },
+  "homepage": "https://github.com/qaxt",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "mjs": "node test.mjs"
   },
   "keywords": [],
   "author": "qaxt",
