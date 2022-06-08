@@ -22,6 +22,7 @@ import _ from 'qaxt'
 ```
 
 ## Example
+Here is a **small** snippet to test the module!
 ```js
 var result = null
 
@@ -153,3 +154,8 @@ console.log(result)
 result = _.zip(['username', 'pasword'], ['foo', 'bar'], ['baz', 'qux'])
 console.log(result)
 ```
+
+## Major Updates
+- Added `intersectBy` and `excludeBy`
+- Added `simul` for iterating multiple lists
+- Added `equal` that works for lists and objects
