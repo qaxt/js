@@ -23,11 +23,27 @@ module.exports = {
       all = all.concat(list)
     }
     return all.filter((x) => {
-      let common = true
       for (const list of lists) {
-        ((!list.includes(x)) ? common = false: common = common)
+        if (!list.includes(x)) {
+          return false
+        }
       }
-      return common
+      return true
+    })
+  },
+
+  intersectBy(rule, ...lists) {
+    let all = []
+    for (const list of lists) {
+      all = all.concat(list)
+    }
+    return all.filter((x) => {
+      for (const list of lists) {
+        if (!this.includes(list, x, rule)) {
+          return false
+        }
+      }
+      return true
     })
   },
   
@@ -43,11 +59,42 @@ module.exports = {
     }
     return all.filter(x => !common.includes(x))
   },
+
+  excludeBy(rule, ...lists) {
+    let all = []
+    for (const list of lists) {
+      all = all.concat(list)
+    }
+    const track = []
+    const common = []
+    for (const item of all) {
+      ((this.includes(track, item, rule)) ? common.push(item) : track.push(item))
+    }
+    return all.filter(x => !this.includes(common, x, rule))
+  },
   
   // Array Purification
   
-  filter(list, fun) {
-    return list.filter(fun)
+  filter(list, rule) {
+    if (typeof rule === 'function') {
+      const yes = list.filter(rule)
+      return yes
+    } else if (Array.isArray(rule)) {
+      const yes = list.filter((x) => {
+        return this.matchesProperty(rule[0], rule[1])(x)
+      })
+      return yes
+    } else if (typeof rule === 'object') {
+      const yes = list.filter((x) => {
+        return this.matches(rule)(x)
+      })
+      return yes
+    } else if (typeof rule === 'string') {
+      const yes = list.filter((x) => {
+        return this.property(rule)(x)
+      })
+      return yes
+    }
   },
   
   partition(list, rule) {
@@ -82,19 +129,22 @@ module.exports = {
       })
       return [yes, no]
     }
-  },  
+  },
+
+  pull(list, rule) {
+    return list.filter(x => !rule.includes(x))
+  },
 
   // Objects
 
   matches(rule) {
     return (object) => {
-      let match = true
       for (const [key, value] of Object.entries(rule)) {
         if (object[key] !== value) {
-          match = false
+          return false
         }
       }
-      return match
+      return true
     }
   },
 
@@ -112,11 +162,10 @@ module.exports = {
 
   must(rule) {
     return (object) => {
-      let match = true
       for (const [key, value] of Object.entries(rule)) {
         if (typeof value === 'string') {
           if (!eval(`object[key]${value}`)) {
-            match = false
+            return false
           }
         } else if (Array.isArray(value) && value.length > 1) {
           let str = ''
@@ -129,18 +178,87 @@ module.exports = {
             }
           })
           if (!eval(str)) {
-            match = false
+            return false
           }
         } else if (typeof value === 'boolean') {
           if (!eval(`object[key] === ${value}`)) {
-            match = false
+            return false
           }
         }
       }
-      return match
+      return true
     }
   },
 
+  combine(...objects) {
+    let combined = {}
+    for (let i = 0; i < objects.length; i++) {
+      for (const [key, value] of Object.entries(objects[i])) {
+        if (combined[key] === undefined) {
+          combined[key] = value
+        }
+      }
+    }
+    return combined
+  },
+
+  mapValues(obj, rule) {
+    if (typeof rule === 'function') {
+      let thing = {}
+      for (const key of Object.keys(obj)) {
+        thing[key] = rule(obj[key])
+      }
+      return thing
+    } else if (typeof rule === 'string') {
+      let thing = {}
+      for (const key of Object.keys(obj)) {
+        thing[key] = obj[key][rule]
+      }
+      return thing
+    }
+  },
+
+  mapKeys(obj, rule) {
+    if (typeof rule === 'function') {
+      let thing = {}
+      for (const key of Object.keys(obj)) {
+        thing[rule(key, obj[key])] = obj[key]
+      }
+      return thing
+    }
+  },
+
+  equal(...items) {
+    for (let i = 0; i < items.length - 1; i++) {
+      if (items[i] !== items[i + 1]) {
+        if (typeof items[i] === typeof items[i + 1]) {
+          if (Array.isArray(items[i])) {
+            if (items[i].length === items[i + 1].length) {
+              for (let j = 0; j < items[i].length; j++) {
+                if (items[i][j] !== items[i + 1][j]) {
+                  return false
+                }
+              }
+            } else {
+              return false
+            }
+          } else if (typeof items[i] === 'object') {
+            if (!this.matches(items[i])(items[i + 1])) {
+              return false
+            }
+          } else if (typeof items[i] === 'string') {
+            if (items[i].toLowerCase() !== items[i + 1].toLowerCase()) {
+              return false
+            }
+          }
+        } else {
+          return false
+        }
+      }
+    }
+    return true
+  },
+  
   // Loops
 
   range(start, end, step) {
@@ -157,6 +275,18 @@ module.exports = {
       }
     }
     return list
+  },
+
+  simul(lists, n, fun) {
+    const out = []
+    for (let i = 0; i < n; i++) {
+      const items = []
+      for (const list of lists) {
+        items.push(list[i])
+      }
+      out.push(fun(items, i, out))
+    }
+    return out
   },
 
   // Statistics
@@ -178,6 +308,26 @@ module.exports = {
     const chart = this.frequency(data)
     const max = Math.max(...chart.values())
     return [...chart.keys()].filter(x => chart.get(x) === max)
+  },
+
+  indexOf(list, item) {
+    const indexes = []
+    for (let i = 0; i < list.length; i++) {
+      if (list[i] === item) {
+        indexes.push(i)
+      }
+    }
+    return indexes
+  },
+
+  index(list, fun) {
+    const indexes = []
+    for (let i = 0; i < list.length; i++) {
+      if (fun(list[i])) {
+        indexes.push(i)
+      }
+    }
+    return indexes
   },
 
   // Sorting
@@ -291,5 +441,131 @@ module.exports = {
       zipped.push(item)
     }
     return zipped
+  },
+
+  chunk(list, n) {
+    if (n) {
+      n = Math.abs(n)
+    } else {
+      n = 1
+    }
+    const chunks = []
+    for (let i = 0; i < list.length; i+= n) {
+      chunks.push(list.slice(i, i + n))
+    }
+    return chunks
+  },
+
+  compact(list) {
+    const pure = []
+    for (let item of list) {
+      if (item) {
+        pure.push(item)
+      }
+    }
+    return pure
+  },
+
+  drop(list, n) {
+    list
+    for (let i = 0; i < n; i++) {
+      list.shift()
+    }
+    return list
+  },
+
+  juggle(list, n) {
+    for (let i = 0; i < n; i++) {
+      list.push(list.shift())
+    }
+    return list
+  },
+
+  join(items, sep) {
+    const list = []
+    list.push(items.shift())
+    for (let item of items) {
+      list.push(sep)
+      list.push(item)
+    }
+    return list
+  },
+  
+  dropWhile(list, fun) {
+    let i = 0
+    while (fun(list[i], i, list)) {
+      list.shift()
+    }
+    return list
+  },
+
+  compress(...lists) {
+    let comp = []
+    for (let i = 0; i < lists.length; i++) {
+      lists[i].forEach((item, index) => {
+        if (comp[index] === undefined || comp[index] === null) {
+          comp[index] = item
+        }
+      })
+    }
+    return comp
+  },
+
+  simplify(duplicates) {
+    const list = []
+    for (const duplicate of duplicates) {
+      if (!list.includes(duplicate)) list.push(duplicate)
+    }
+    duplicates.filter(x => list.includes(x))
+    return list 
+  },
+
+  includes(list, x, rule) {
+    for (const item of list) {
+      if (rule(x) === rule(item)) {
+        return true
+      }
+    }
+    return false
+  },
+
+  reverse(list) {
+    for (let i = 0; i < Math.ceil(list.length/2); i++) {
+      let left = list[i] 
+      let right = list[list.length - i - 1]
+      list[i] = right
+      list[list.length - i - 1] = left
+    }
+    return list
+  },
+
+  insert(item, index, list) {
+    return list.splice(index, 0, item)
+  },
+
+  // Strings
+  
+  title(str) {
+    let text = ''
+    for (let i = 0; i < str.length; i++) {
+      if (!str[i - 1] || str[i - 1].toLowerCase() === ' ') {
+        text += str[i].toUpperCase()
+      } else {
+        text += str[i].toLowerCase()
+      }
+    }
+    return text
+  },
+
+  camelCase(str) {
+    let text = ''
+    for (let i = 0; i < str.length; i++) {
+      if (str[i - 1] && str[i - 1].toLowerCase() === ' ') {
+        text += str[i].toUpperCase()
+      } else {
+        text += str[i].toLowerCase()
+      }
+    }
+    return text
   },
 }
